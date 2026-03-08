@@ -43,8 +43,8 @@ function loadEnvFile(envPath: string): Record<string, string> {
 
 export function loadApiConfig(): WeChatApiConfig | null {
   // Priority: env vars → project .env → user .env
-  const cwdEnv = loadEnvFile(path.join(process.cwd(), ".baoyu-skills", ".env"));
-  const homeEnv = loadEnvFile(path.join(process.env.HOME || "", ".baoyu-skills", ".env"));
+  const cwdEnv = loadEnvFile(path.join(process.cwd(), ".wechat-article-downloader", ".env"));
+  const homeEnv = loadEnvFile(path.join(process.env.HOME || "", ".wechat-article-downloader", ".env"));
 
   const appId = process.env.WECHAT_APP_ID || cwdEnv.WECHAT_APP_ID || homeEnv.WECHAT_APP_ID;
   const appSecret = process.env.WECHAT_APP_SECRET || cwdEnv.WECHAT_APP_SECRET || homeEnv.WECHAT_APP_SECRET;

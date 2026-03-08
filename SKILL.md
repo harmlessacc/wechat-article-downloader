@@ -27,16 +27,16 @@ Use Bash to check EXTEND.md existence (priority order):
 
 ```bash
 # Check project-level first
-test -f .baoyu-skills/wechat-article-downloader/EXTEND.md && echo "project"
+test -f .wechat-article-downloader/EXTEND.md && echo "project"
 
 # Then user-level
-test -f "$HOME/.baoyu-skills/wechat-article-downloader/EXTEND.md" && echo "user"
+test -f "$HOME/.wechat-article-downloader/EXTEND.md" && echo "user"
 ```
 
 | Path | Location |
 |------|----------|
-| `.baoyu-skills/wechat-article-downloader/EXTEND.md` | Project directory |
-| `$HOME/.baoyu-skills/wechat-article-downloader/EXTEND.md` | User home |
+| `.wechat-article-downloader/EXTEND.md` | Project directory |
+| `$HOME/.wechat-article-downloader/EXTEND.md` | User home |
 
 **EXTEND.md Supports**: Default output directory | Image download toggle | Timeout settings
 
@@ -132,7 +132,7 @@ wechat-articles/
 | `WECHAT_APP_ID` | WeChat Official Account App ID (for `--account` mode) |
 | `WECHAT_APP_SECRET` | WeChat Official Account App Secret (for `--account` mode) |
 
-**API credentials** can also be set in `.baoyu-skills/.env` or `~/.baoyu-skills/.env`.
+**API credentials** can also be set in `.wechat-article-downloader/.env` or `~/.wechat-article-downloader/.env`.
 
 ## Troubleshooting
 

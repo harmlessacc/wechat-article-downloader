@@ -10,6 +10,7 @@ import { wechatHtmlToMarkdown, createMarkdownDocument } from "./wechat-to-markdo
 import { downloadImages } from "./image-downloader.js";
 import { parseBatchFile, processBatch } from "./batch.js";
 import { loadApiConfig, listPublishedArticles } from "./wechat-api.js";
+import { searchAccountArticles } from "./wechat-search.js";
 import type { ArticleOutput, WeChatExtractionResult } from "./types.js";
 import {
   DEFAULT_TIMEOUT_MS,
@@ -39,6 +40,8 @@ interface Args {
   timeout: number;
   listOnly: boolean;
   maxArticles: number;
+  account: boolean;
+  search: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -50,6 +53,8 @@ function parseArgs(argv: string[]): Args {
     timeout: DEFAULT_TIMEOUT_MS,
     listOnly: false,
     maxArticles: Infinity,
+    account: false,
+    search: "",
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -57,6 +62,8 @@ function parseArgs(argv: string[]): Args {
     if (arg === "--no-images") args.noImages = true;
     else if (arg === "--wait" || arg === "-w") args.wait = true;
     else if (arg === "--list") args.listOnly = true;
+    else if (arg === "--account") args.account = true;
+    else if (arg === "--search" || arg === "-s") args.search = argv[++i] || "";
     else if (arg === "-o" || arg === "--output") args.output = argv[++i];
     else if (arg === "--timeout" || arg === "-t") args.timeout = parseInt(argv[++i], 10) || DEFAULT_TIMEOUT_MS;
     else if (arg === "--max" || arg === "-n") args.maxArticles = parseInt(argv[++i], 10) || Infinity;
@@ -66,7 +73,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 function printUsage(): void {
-  console.log(`Usage: bun main.ts <url|batch-file|--account> [options]
+  console.log(`Usage: bun main.ts <url|batch-file> [options]
 
 Arguments:
   <url>                   Single WeChat article URL
@@ -77,16 +84,18 @@ Options:
   --no-images             Skip image download, keep remote URLs
   --wait                  Wait mode: log in manually, press Enter to capture
   --timeout <ms>          Page load timeout (default: 30000)
+  --search, -s <name>     Search & download articles from a public account by name
   --account               Download all articles from your own account (needs API config)
-  --list                  List articles only, don't download (with --account)
-  --max, -n <num>         Max articles to download (with --account)
+  --list                  List articles only, don't download
+  --max, -n <num>         Max articles to download (default: all)
 
 Examples:
   bun main.ts "https://mp.weixin.qq.com/s/xxxx"
   bun main.ts urls.txt -o ./backup/
+  bun main.ts --search "时见谈" --max 5
+  bun main.ts --search "时见谈" --list
   bun main.ts --account -o ./my-articles/
-  bun main.ts --account --list
-  bun main.ts --account --max 10`);
+  bun main.ts --account --list`);
 }
 
 // --- Slug generation ---
@@ -253,9 +262,13 @@ async function withChrome<T>(
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
+  // --search mode: search for account by name
+  if (args.search) {
+    return handleSearchMode(args);
+  }
+
   // --account mode
-  if (args.input === "--account" || args.input === "account") {
-    args.input = "";
+  if (args.account) {
     return handleAccountMode(args);
   }
 
@@ -269,10 +282,6 @@ async function main(): Promise<void> {
   const isBatchFile = !isUrl && fs.existsSync(args.input) && args.input.endsWith(".txt");
 
   if (!isUrl && !isBatchFile) {
-    // Could be --account flag used differently
-    if (args.input === "account") {
-      return handleAccountMode(args);
-    }
     console.error(`Invalid input: ${args.input}`);
     console.error("Provide a WeChat article URL, a .txt batch file, or --account");
     process.exit(1);
@@ -322,6 +331,51 @@ async function main(): Promise<void> {
       }
     });
   }
+}
+
+async function handleSearchMode(args: Args): Promise<void> {
+  const accountName = args.search;
+  const max = isFinite(args.maxArticles) ? args.maxArticles : 10;
+
+  await mkdir(args.output, { recursive: true });
+
+  await withChrome("https://weixin.sogou.com", false, async (cdp, sessionId) => {
+    // Search for articles
+    const articles = await searchAccountArticles(cdp, sessionId, accountName, max, console.log);
+
+    if (articles.length === 0) {
+      console.error(`No articles found for "${accountName}".`);
+      process.exit(1);
+    }
+
+    if (args.listOnly) {
+      console.log(`\n--- Articles from "${accountName}" ---`);
+      for (let i = 0; i < articles.length; i++) {
+        console.log(`${String(i + 1).padStart(3)}. ${articles[i].title}`);
+        console.log(`     ${articles[i].url}`);
+      }
+      return;
+    }
+
+    console.log(`\nDownloading ${articles.length} articles to ${args.output}/`);
+    const urls = articles.map(a => a.url);
+
+    const result = await processBatch(
+      urls,
+      async (url, _idx) => processOneArticle(cdp, sessionId, url, args),
+      { delayMs: BATCH_INTER_ARTICLE_DELAY_MS, log: console.log }
+    );
+
+    console.log(`\n--- Summary ---`);
+    console.log(`Succeeded: ${result.succeeded.length}`);
+    console.log(`Failed: ${result.failed.length}`);
+    if (result.failed.length > 0) {
+      console.log("\nFailed URLs:");
+      for (const f of result.failed) {
+        console.log(`  ${f.url}: ${f.error}`);
+      }
+    }
+  });
 }
 
 async function handleAccountMode(args: Args): Promise<void> {

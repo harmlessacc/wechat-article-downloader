@@ -71,7 +71,7 @@ bun scripts/main.ts --account -o ./my-articles/
 bun scripts/main.ts --account --max 20
 ```
 
-Or put credentials in `.baoyu-skills/.env`:
+Or put credentials in `.wechat-article-downloader/.env`:
 
 ```env
 WECHAT_APP_ID=your_app_id
